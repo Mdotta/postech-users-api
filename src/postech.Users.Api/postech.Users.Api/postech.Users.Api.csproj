@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <UserSecretsId>eafdbc25-1f40-4e2d-945a-f93348cc71b9</UserSecretsId>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.2" />
+        
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+        <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+
+        <PackageReference Include="MassTransit.RabbitMQ" Version="8.3.3" />
+
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.2">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+
+        <PackageReference Include="Scalar.AspNetCore" Version="2.12.18" />
+
+        <PackageReference Include="Serilog.AspNetCore" Version="8.0.2" />
+        <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+        <PackageReference Include="Serilog.Enrichers.CorrelationId" Version="3.0.1" />
+        <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Update="@(Content)">
+        <Visible Condition="'%(NuGetItemType)' == 'Content'">false</Visible>
+      </Content>
+    </ItemGroup>
+
+</Project>
+
