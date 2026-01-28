@@ -27,8 +27,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         // Database
-        var connectionString = Environment.GetEnvironmentVariable("DATABASE_CONNECTION_STRING")
-                                 ?? configuration.GetConnectionString("DefaultConnection")
+        var connectionString = configuration.GetConnectionString("DefaultConnection")
                                  ?? throw new InvalidOperationException("Database connection string is not configured");
 
         services.AddDbContext<UsersDbContext>(options =>
@@ -68,15 +67,14 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
-        var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET") 
-                        ?? configuration["Jwt:Secret"] 
+        var jwtSecret = configuration["JwtSettings:SecretKey"] 
                         ?? throw new InvalidOperationException("JWT Secret is not configured");
 
-        var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") 
-                        ?? configuration["Jwt:Issuer"];
+        var jwtIssuer = configuration["JwtSettings:Issuer"]
+                        ?? throw new InvalidOperationException("JWT Issuer is not configured");
 
-        var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") 
-                          ?? configuration["Jwt:Audience"];
+        var jwtAudience = configuration["JwtSettings:Audience"]
+                          ?? throw new InvalidOperationException("JWT Audience is not configured");
 
         var key = Encoding.UTF8.GetBytes(jwtSecret);
 

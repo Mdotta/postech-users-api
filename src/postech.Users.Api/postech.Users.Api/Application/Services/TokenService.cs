@@ -18,15 +18,14 @@ public class TokenService : ITokenService
 
     public string GenerateToken(User user)
     {
-        var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET") 
-                        ?? _configuration["Jwt:Secret"] 
+        var jwtSecret = _configuration["JwtSettings:SecretKey"] 
                         ?? throw new InvalidOperationException("JWT Secret is not configured");
 
-        var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") 
-                        ?? _configuration["Jwt:Issuer"];
+        var jwtIssuer = _configuration["JwtSettings:Issuer"]
+                        ?? throw new InvalidOperationException("JWT Issuer is not configured");
 
-        var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") 
-                          ?? _configuration["Jwt:Audience"];
+        var jwtAudience = _configuration["JwtSettings:Audience"]
+                        ?? throw new InvalidOperationException("JWT Audience is not configured");
         
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
