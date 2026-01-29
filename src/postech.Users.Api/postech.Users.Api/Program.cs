@@ -10,7 +10,12 @@ Log.Logger = new LoggerConfiguration()
     .Enrich.WithProperty("Service", "Users.Api")
     .CreateLogger();
 
-builder.Host.UseSerilog();
+builder.Host.UseSerilog((context, services, options) =>
+{
+    options
+        .ReadFrom.Configuration(context.Configuration)
+        .Enrich.FromLogContext();
+});
 
 // Add services to the container
 builder.Services.AddApplicationServices();
