@@ -35,13 +35,13 @@ public static class UserEndpoints
 
         var result = await userService.GetUserByIdAsync(userId, cancellationToken);
 
-        if (result.IsFailure)
+        if (result.IsError)
         {
             return Results.NotFound(new ProblemDetails
             {
                 Status = StatusCodes.Status404NotFound,
                 Title = "User not found",
-                Detail = result.Error
+                Detail = string.Join("; ", result.Errors.Select(e => e.Description))
             });
         }
 

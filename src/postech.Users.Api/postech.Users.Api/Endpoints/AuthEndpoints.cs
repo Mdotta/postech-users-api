@@ -30,7 +30,7 @@ public static class AuthEndpoints
     {
         var result = await userService.LoginAsync(request, cancellationToken);
         
-        if (result.IsFailure)
+        if (result.IsError)
         {
             return Results.Unauthorized();
         }
@@ -45,13 +45,13 @@ public static class AuthEndpoints
     {
         var result = await userService.RegisterAsync(request, cancellationToken);
 
-        if (result.IsFailure)
+        if (result.IsError)
         {
             return Results.BadRequest(new ProblemDetails
             {
                 Status = StatusCodes.Status400BadRequest,
                 Title = "Register failed",
-                Detail = result.Error
+                Detail = string.Join("; ", result.Errors.Select(e => e.Description))
             });
         }
 

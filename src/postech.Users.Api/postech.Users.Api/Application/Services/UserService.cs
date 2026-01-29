@@ -1,8 +1,10 @@
+using ErrorOr;
 using postech.Users.Api.Application.DTOs;
 using postech.Users.Api.Application.Events;
+using postech.Users.Api.Application.Validations;
 using postech.Users.Api.Domain.Entities;
 using postech.Users.Api.Domain.Enums;
-using Postech.Users.Api.Domain.Results;
+using postech.Users.Api.Domain.Errors;
 using postech.Users.Api.Infrastructure.Messaging;
 using postech.Users.Api.Infrastructure.Repositories;
 
@@ -15,26 +17,34 @@ public class UserService: IUserService
     private readonly ITokenService _tokenService;
     private readonly IEventPublisher _eventPublisher;
     private readonly ILogger<UserService> _logger;
-
+    private readonly IAuthorizationService _authorizationService;
+    
     public UserService(IUserRepository userRepository,
         ITokenService tokenService,
         IEventPublisher eventPublisher,
-        ILogger<UserService> logger)
+        ILogger<UserService> logger,
+        IAuthorizationService authorizationService)
     {
         _userRepository = userRepository;
         _tokenService = tokenService;
         _eventPublisher = eventPublisher;
         _logger = logger;
+        _authorizationService = authorizationService;
     }
 
-    public async Task<Result<UserResponse>> RegisterAsync(RegisterUserRequest request, CancellationToken cancellationToken = default)
+    public async Task<ErrorOr<UserResponse>> RegisterAsync(RegisterUserRequest request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Registering user with email {Email}", request.Email);
 
+        var validationResult = RegisterUserRequestValidator.Validate(request);
+
+        if (validationResult.IsError)
+            return validationResult.Errors;
+        
         if (await _userRepository.EmailExistsAsync(request.Email, cancellationToken))
         {
             _logger.LogWarning("Registration failed: Email {Email} already exists", request.Email);
-            return Result.Failure<UserResponse>("Email already registered"); //TODO: validate message for security reasons
+            return Errors.User.EmailAlreadyExists;
         }
         
         var role = UserRoles.User;
@@ -49,7 +59,13 @@ public class UserService: IUserService
         
         if (role == UserRoles.Administrator)
         {
-            _logger.LogWarning("Attempting to create Admin user - validation required");
+            if (!_authorizationService.IsCurrentUserAdmin())
+            {
+                _logger.LogWarning("Non-admin user attempted to create admin account for email {Email}", request.Email);
+                return Errors.User.ForbiddenAdminCreation;
+            }
+
+            _logger.LogInformation("Admin user creating another admin account");
         }
         
         var passwordHash = User.HashPassword(request.Password);
@@ -71,10 +87,10 @@ public class UserService: IUserService
 
         var response = MapToResponse(user);
         
-        return Result.Success(response);
+        return response;
     }
 
-    public async Task<Result<string>> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
+    public async Task<ErrorOr<string>> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Logining user with email {Email}", request.Email);
         
@@ -82,29 +98,29 @@ public class UserService: IUserService
 
         if (user == null || !user.VerifyPassword(request.Password))
         {
-            _logger.LogWarning("Login failed: Email {Email} does not exist", request.Email);
-            return Result.Failure<string>("Email does not exist");
+            _logger.LogWarning("Login failed: Invalid credentials for email {Email}", request.Email);
+            return Errors.User.InvalidCredentials;
         } 
         
         var token = _tokenService.GenerateToken(user);
     
         _logger.LogInformation("User {UserId} logged in successfully", user.Id);
         
-        return Result.Success(token);
+        return token;
     }
 
-    public async Task<Result<UserResponse>> GetUserByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<ErrorOr<UserResponse>> GetUserByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var user = await _userRepository.GetByIdAsync(id, cancellationToken);
 
         if (user == null)
         {
-            return Result.Failure<UserResponse>("User not found");
+            return Errors.User.NotFound;
         }
         
         var response = MapToResponse(user);
         
-        return Result.Success(response);
+        return response;
     }
     
     private static UserResponse MapToResponse(User user)

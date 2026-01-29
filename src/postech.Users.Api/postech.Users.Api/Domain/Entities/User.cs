@@ -42,4 +42,31 @@ public class User
     {
         return BCrypt.Net.BCrypt.HashPassword(password);
     }
+    
+    public static bool IsValidEmail(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return false;
+        
+        var regex = new System.Text.RegularExpressions.Regex(
+            @"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    
+        return regex.IsMatch(email);
+    }
+    
+    public static bool IsSafePassword(string password)
+    {
+        if (password.Length < 8)
+            return false;
+        if (!password.Any(char.IsUpper))
+            return false;
+        if (!password.Any(char.IsLower))
+            return false;
+        if (!password.Any(char.IsDigit))
+            return false;
+        if (!password.Any(ch => !char.IsLetterOrDigit(ch)))
+            return false;
+        return true;
+    }
 }
