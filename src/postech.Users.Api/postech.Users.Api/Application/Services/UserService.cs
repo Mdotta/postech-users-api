@@ -47,15 +47,7 @@ public class UserService: IUserService
             return Errors.User.EmailAlreadyExists;
         }
         
-        var role = UserRoles.User;
-        if (!string.IsNullOrWhiteSpace(request.Role))
-        {
-            if (!Enum.TryParse(request.Role!, true, out role))
-            {
-                _logger.LogWarning("Invalid role '{Role}' provided for email {Email}, defaulting to User", request.Role, request.Email);
-                role = UserRoles.User;
-            }
-        }
+        var role = request.Role ?? UserRoles.User;
         
         if (role == UserRoles.Administrator)
         {
@@ -121,6 +113,26 @@ public class UserService: IUserService
         var response = MapToResponse(user);
         
         return response;
+    }
+
+    public async Task<ErrorOr<Success>> UpdateRole(Guid id, RequestUpdateUserRole request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Updating user {UserId} status to {Role}", id, request.Role);
+        
+        var user = await _userRepository.GetByIdAsync(id, cancellationToken);
+
+        if (user == null)
+        {
+            _logger.LogWarning("Update status failed: User {UserId} not found", id);
+            return Errors.User.NotFound;
+        }
+        
+        user.UpdateRole(request.Role);
+        await _userRepository.UpdateAsync(user, cancellationToken);
+        
+        _logger.LogInformation("User {UserId} status updated successfully to {Role}", id, request.Role);
+        
+        return Result.Success;
     }
     
     private static UserResponse MapToResponse(User user)

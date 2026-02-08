@@ -19,6 +19,34 @@ public static class UserEndpoints
             .Produces<UserResponse>(StatusCodes.Status200OK)
             .Produces<ProblemDetails>(StatusCodes.Status401Unauthorized)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+        
+        group.MapPatch("/{id:guid}/status",UpdateUserStatus)
+            .WithName("UpdateStatus")
+            .WithDescription("Update the status of an existing user")
+            .RequireAuthorization(Policies.RequireAdminRole)
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+    }
+
+    private static async Task<IResult> UpdateUserStatus(
+        [FromRoute] Guid id,
+        [FromBody] RequestUpdateUserRole request,
+        [FromServices] IUserService userService,
+        CancellationToken cancellationToken)
+    {
+        var result = await userService.UpdateRole(id, request, cancellationToken);
+
+        if (result.IsError)
+        {
+            return Results.NotFound(new ProblemDetails
+            {
+                Status = StatusCodes.Status404NotFound,
+                Title = "User not found",
+                Detail = string.Join(";\n", result.Errors.Select(e=>e.Description).ToArray())
+            });
+        }
+        
+        return Results.NoContent();
     }
 
     private static async Task<IResult> GetCurrentUserAsync(
@@ -41,7 +69,7 @@ public static class UserEndpoints
             {
                 Status = StatusCodes.Status404NotFound,
                 Title = "User not found",
-                Detail = string.Join("; ", result.Errors.Select(e => e.Description))
+                Detail = string.Join(";\n", result.Errors.Select(e => e.Description))
             });
         }
 

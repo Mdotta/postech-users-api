@@ -15,7 +15,7 @@ public class AuthorizationService : IAuthorizationService
     public bool IsCurrentUserAdmin()
     {
         var role = GetCurrentUserRole();
-        return role?.Equals(UserRoles.Administrator.ToString(), StringComparison.OrdinalIgnoreCase) ?? false;
+        return role?.Equals(nameof(UserRoles.Administrator), StringComparison.OrdinalIgnoreCase) ?? false;
     }
 
     public Guid? GetCurrentUserId()
