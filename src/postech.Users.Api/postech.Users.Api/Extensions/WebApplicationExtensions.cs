@@ -28,11 +28,7 @@ public static class WebApplicationExtensions
         // Map Endpoints
         app.MapAuthEndpoints();
         app.MapUserEndpoints();
-
-        // Health Check
-        app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "users-api" }))
-            .WithTags("Health")
-            .WithName("HealthCheck");
+        app.MapHealthEndpoints();
 
         return app;
     }

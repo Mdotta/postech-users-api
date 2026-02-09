@@ -20,6 +20,14 @@ builder.Host.UseSerilog((context, services, options) =>
 // Add services to the container
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructure(builder.Configuration);
+
+// Log RabbitMQ configuration
+Log.Information("Configuring RabbitMQ with Host: {Host}, Port: {Port}, User: {User}, VirtualHost: {VHost}",
+    builder.Configuration["RabbitMQ:Host"] ?? "localhost",
+    builder.Configuration.GetValue<int>("RabbitMQ:Port", 5672),
+    builder.Configuration["RabbitMQ:Username"] ?? "guest",
+    builder.Configuration["RabbitMQ:VirtualHost"] ?? "/");
+
 builder.Services.AddMessaging(builder.Configuration);
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddOpenApiWithAuth();

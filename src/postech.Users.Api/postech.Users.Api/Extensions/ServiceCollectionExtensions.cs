@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text;
+using postech.Users.Api.Application.Events;
 using postech.Users.Api.Application.Services;
 using postech.Users.Api.Domain.Authorization;
 using postech.Users.Api.Infrastructure.Data;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using postech.Users.Api.Application.Utils;
 using postech.Users.Api.Domain.Enums;
 
 namespace postech.Users.Api.Extensions;
@@ -19,6 +21,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
         services.AddHttpContextAccessor();
+        services.AddScoped<ICorrelationContext, CorrelationContext>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IAuthorizationService, AuthorizationService>();
@@ -47,19 +50,35 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddMessaging(this IServiceCollection services, IConfiguration configuration)
     {
         var rabbitMqHost = configuration["RabbitMQ:Host"] ?? "localhost";
+        var rabbitMqPort = configuration.GetValue<ushort>("RabbitMQ:Port", 5672);
         var rabbitMqUser = configuration["RabbitMQ:Username"] ?? "guest";
         var rabbitMqPass = configuration["RabbitMQ:Password"] ?? "guest";
-
+        var rabbitMqVHost = configuration["RabbitMQ:VirtualHost"] ?? "/";
+        
         services.AddMassTransit(x =>
         {
+            // Configura o formatador global de nomes de entidade (remove namespace)
+            x.SetKebabCaseEndpointNameFormatter();
+            
             x.UsingRabbitMq((context, cfg) =>
             {
-                cfg.Host(rabbitMqHost, h =>
+                cfg.Host(rabbitMqHost, rabbitMqPort, rabbitMqVHost, h =>
                 {
                     h.Username(rabbitMqUser);
                     h.Password(rabbitMqPass);
+                    
+                    // Configurações de conexão e timeout
+                    h.RequestedConnectionTimeout(TimeSpan.FromSeconds(30));
+                    h.Heartbeat(TimeSpan.FromSeconds(10));
                 });
-
+                
+                // Configurações de retry e timeout
+                cfg.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
+                cfg.PrefetchCount = 16;
+                
+                // Configura a topologia de mensagens para usar apenas o nome da classe
+                cfg.Message<UserCreatedEvent>(e => e.SetEntityName("user-created"));
+                
                 cfg.ConfigureEndpoints(context);
             });
         });
