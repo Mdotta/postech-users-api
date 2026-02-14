@@ -25,7 +25,7 @@ public class RegisterUserRequestValidatorTests
     public void Validate_ShouldReturnExpectedErrors()
     {
         // Arrange
-        var request = new RegisterUserRequest("valid@email", "", "weakPass", UserRoles.User);
+        var request = new RegisterUserRequest("invalid@email", "", "weakPass", UserRoles.User);
         
         // Act
         var result = RegisterUserRequestValidator.Validate(request);

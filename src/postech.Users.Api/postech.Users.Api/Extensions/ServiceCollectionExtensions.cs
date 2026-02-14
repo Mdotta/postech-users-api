@@ -13,6 +13,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using postech.Users.Api.Application.Utils;
 using postech.Users.Api.Domain.Enums;
+using Serilog;
 
 namespace postech.Users.Api.Extensions;
 
@@ -55,9 +56,14 @@ public static class ServiceCollectionExtensions
         var rabbitMqPass = configuration["RabbitMQ:Password"] ?? "guest";
         var rabbitMqVHost = configuration["RabbitMQ:VirtualHost"] ?? "/";
         
+        Log.Information("Configuring RabbitMQ with Host: {Host}, Port: {Port}, User: {User}, VirtualHost: {VHost}",
+            rabbitMqHost,
+            rabbitMqPort,
+            rabbitMqUser,
+            rabbitMqVHost);
+        
         services.AddMassTransit(x =>
         {
-            // Configura o formatador global de nomes de entidade (remove namespace)
             x.SetKebabCaseEndpointNameFormatter();
             
             x.UsingRabbitMq((context, cfg) =>
@@ -67,16 +73,13 @@ public static class ServiceCollectionExtensions
                     h.Username(rabbitMqUser);
                     h.Password(rabbitMqPass);
                     
-                    // Configurações de conexão e timeout
                     h.RequestedConnectionTimeout(TimeSpan.FromSeconds(30));
                     h.Heartbeat(TimeSpan.FromSeconds(10));
                 });
                 
-                // Configurações de retry e timeout
                 cfg.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
                 cfg.PrefetchCount = 16;
                 
-                // Configura a topologia de mensagens para usar apenas o nome da classe
                 cfg.Message<UserCreatedEvent>(e => e.SetEntityName("user-created"));
                 
                 cfg.ConfigureEndpoints(context);

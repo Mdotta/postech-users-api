@@ -35,9 +35,9 @@ public class UserService: IUserService
     public async Task<ErrorOr<UserResponse>> RegisterAsync(RegisterUserRequest request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Registering user with email {Email}", request.Email);
-
+        
         var validationResult = RegisterUserRequestValidator.Validate(request);
-
+        
         if (validationResult.IsError)
             return validationResult.Errors;
         
