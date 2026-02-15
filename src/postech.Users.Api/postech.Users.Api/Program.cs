@@ -1,23 +1,22 @@
+using Microsoft.Net.Http.Headers;
 using postech.Users.Api.Extensions;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Serilog
-
 #region [Logging Configuration]
 
+// Bootstrap logger
 Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(builder.Configuration)
-    .Enrich.FromLogContext()
-    .Enrich.WithProperty("Service", "Users.Api")
+    .WriteTo.Console()
     .CreateLogger();
 
+// Main logger
 builder.Host.UseSerilog((context, services, options) =>
 {
     options
         .ReadFrom.Configuration(context.Configuration)
-        .Enrich.FromLogContext();
+        .Enrich.WithCorrelationId(headerName: "X-Correlation-Id", addValueIfHeaderAbsence: true);
 });
 
 #endregion

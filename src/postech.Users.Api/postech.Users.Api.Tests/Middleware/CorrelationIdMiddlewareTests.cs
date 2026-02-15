@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using postech.Users.Api.Application.Utils;
 using postech.Users.Api.Middleware;
@@ -9,8 +10,9 @@ namespace postech.Users.Api.Tests.Middleware;
 public class CorrelationIdMiddlewareTests
 {
     private readonly ICorrelationContext _correlationContext = Substitute.For<ICorrelationContext>();
+    private readonly ILogger<CorrelationIdMiddleware> _logger = Substitute.For<ILogger<CorrelationIdMiddleware>>();
     
-    private CorrelationIdMiddleware GetMiddleware(RequestDelegate next) => new CorrelationIdMiddleware(next);
+    private CorrelationIdMiddleware GetMiddleware(RequestDelegate next) => new CorrelationIdMiddleware(next, _logger);
 
     [Fact]
     public async Task InvokeAsync_WithValidCorrelationIdHeader_ShouldUseProvidedId()
@@ -174,5 +176,27 @@ public class CorrelationIdMiddlewareTests
         // Assert
         correlationContext1.CorrelationId.Should().Be(validId);
         correlationContext2.CorrelationId.Should().NotBeEmpty();
+    }
+    
+    [Fact]
+    public async Task InvokeAsync_ShouldAddCorrelationIdToResponseHeader()
+    {
+        // Arrange
+        var expectedCorrelationId = Guid.NewGuid();
+        var context = new DefaultHttpContext();
+        context.Request.Headers["X-Correlation-Id"] = expectedCorrelationId.ToString();
+        
+        var next = new RequestDelegate(async ctx =>
+        {
+            await Task.CompletedTask;
+        });
+
+        var middleware = GetMiddleware(next);
+
+        // Act
+        await middleware.InvokeAsync(context, _correlationContext);
+
+        // Assert
+        context.Response.Headers["X-Correlation-Id"].ToString().Should().Be(expectedCorrelationId.ToString());
     }
 }
