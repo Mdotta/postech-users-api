@@ -80,8 +80,6 @@ public static class ServiceCollectionExtensions
                 cfg.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
                 cfg.PrefetchCount = 16;
                 
-                cfg.Message<UserCreatedEvent>(e => e.SetEntityName("user-created"));
-                
                 cfg.ConfigureEndpoints(context);
             });
         });

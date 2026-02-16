@@ -12,7 +12,7 @@ WORKDIR "/src/postech.Users.Api"
 RUN dotnet build "postech.Users.Api.csproj" -c Release -o /app/build
 
 FROM build AS publish
-RUN dotnet publish "postech.Users.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "postech.Users.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false /p:PublishTrimmed=true /p:TrimMode=partial
 
 FROM base AS final
 WORKDIR /app
