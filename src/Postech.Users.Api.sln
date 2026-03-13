@@ -1,8 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "postech.Users.Api", "postech.Users.Api\postech.Users.Api.csproj", "{571E7354-C306-440B-8950-09131B46E1A9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Postech.Users.Api", "Postech.Users.Api\Postech.Users.Api.csproj", "{571E7354-C306-440B-8950-09131B46E1A9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "postech.Users.Api.Tests", "postech.Users.Api.Tests\postech.Users.Api.Tests.csproj", "{53EB2B7B-7599-4736-B5F9-1105BE56D0F7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Postech.Users.Api.Tests", "Postech.Users.Api.Tests\Postech.Users.Api.Tests.csproj", "{53EB2B7B-7599-4736-B5F9-1105BE56D0F7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

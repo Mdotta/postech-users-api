@@ -65,20 +65,22 @@ public static class ServiceCollectionExtensions
         services.AddMassTransit(x =>
         {
             x.SetKebabCaseEndpointNameFormatter();
-            
+
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, rabbitMqPort, rabbitMqVHost, h =>
                 {
                     h.Username(rabbitMqUser);
                     h.Password(rabbitMqPass);
-                    
+
                     h.RequestedConnectionTimeout(TimeSpan.FromSeconds(30));
                     h.Heartbeat(TimeSpan.FromSeconds(10));
                 });
-                
+
                 cfg.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
                 cfg.PrefetchCount = 16;
+                
+                cfg.Message<UserCreatedEvent>(x => x.SetEntityName("UserCreatedEvent"));
                 
                 cfg.ConfigureEndpoints(context);
             });
