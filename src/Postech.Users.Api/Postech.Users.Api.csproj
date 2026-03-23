@@ -45,5 +45,9 @@
       </Content>
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\..\..\postech-shared\Postech.Shared\Postech.Shared.csproj" />
+    </ItemGroup>
+
 </Project>
 

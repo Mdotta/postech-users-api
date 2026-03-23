@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using System.Text;
-using postech.Users.Api.Application.Events;
 using postech.Users.Api.Application.Services;
+using Postech.Shared.Contracts.Events;
 using postech.Users.Api.Domain.Authorization;
 using postech.Users.Api.Infrastructure.Data;
 using postech.Users.Api.Infrastructure.Messaging;

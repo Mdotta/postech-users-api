@@ -1,7 +1,7 @@
 using ErrorOr;
 using postech.Users.Api.Application.DTOs;
-using postech.Users.Api.Application.Events;
 using postech.Users.Api.Application.Validations;
+using Postech.Shared.Contracts.Events;
 using postech.Users.Api.Domain.Entities;
 using postech.Users.Api.Domain.Enums;
 using postech.Users.Api.Domain.Errors;
