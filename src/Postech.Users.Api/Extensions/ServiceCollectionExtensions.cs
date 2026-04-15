@@ -1,21 +1,15 @@
-using System.Security.Claims;
-using System.Text;
 using Amazon.SimpleNotificationService;
-using Amazon.SQS;
 using postech.Users.Api.Application.Services;
-using Postech.Shared.Contracts.Events;
 using postech.Users.Api.Domain.Authorization;
 using postech.Users.Api.Infrastructure.Data;
 using postech.Users.Api.Infrastructure.Messaging;
 using postech.Users.Api.Infrastructure.Repositories;
-using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using postech.Users.Api.Application.Utils;
 using postech.Users.Api.Domain.Enums;
-using Serilog;
 
 namespace postech.Users.Api.Extensions;
 
@@ -34,9 +28,13 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        // Database
-        var connectionString = configuration.GetConnectionString("DefaultConnection")
-                                 ?? throw new InvalidOperationException("Database connection string is not configured");
+        // Database — prefer environment variable, fall back to appsettings
+        var connectionString =
+            Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+            ?? configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException(
+                "Database connection string is not configured. " +
+                "Set the ConnectionStrings__DefaultConnection environment variable or ConnectionStrings:DefaultConnection in appsettings.");
 
         services.AddDbContext<UsersDbContext>(options =>
             options.UseNpgsql(connectionString));
@@ -51,37 +49,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddDefaultAWSOptions(configuration.GetAWSOptions());
         services.AddAWSService<IAmazonSimpleNotificationService>();
-        services.AddScoped<IEventPublisher, SqsEventPublisher>();
-
-        var region = configuration["AWS:Region"] ?? "us-east-1";
-        var accessKey = configuration["AWS:AccessKey"];
-        var secretKey = configuration["AWS:SecretKey"];
-        var serviceUrl = configuration["AWS:ServiceURL"];
-
-        services.AddMassTransit(x =>
-        {
-            x.SetKebabCaseEndpointNameFormatter();
-
-            x.UsingAmazonSqs((context, cfg) =>
-            {
-                cfg.Host(region, h =>
-                {
-                    if (!string.IsNullOrWhiteSpace(accessKey) && !string.IsNullOrWhiteSpace(secretKey))
-                    {
-                        h.AccessKey(accessKey);
-                        h.SecretKey(secretKey);
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(serviceUrl))
-                    {
-                        h.Config(new AmazonSQSConfig { ServiceURL = serviceUrl });
-                        h.Config(new AmazonSimpleNotificationServiceConfig { ServiceURL = serviceUrl });
-                    }
-                });
-
-                cfg.ConfigureEndpoints(context);
-            });
-        });
+        services.AddScoped<IEventPublisher, SnsEventPublisher>(); // ← was SqsEventPublisher
 
         return services;
     }

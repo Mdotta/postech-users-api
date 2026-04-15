@@ -1,5 +1,10 @@
+using DotNetEnv;
 using postech.Users.Api.Extensions;
 using Serilog;
+
+// Load .env from project root if present (no-op when running in containers/CI)
+Env.Load(Path.Combine(Directory.GetCurrentDirectory(), ".env"),
+    new LoadOptions(setEnvVars: true, clobberExistingVars: false, onlyExactPath: false));
 
 var builder = WebApplication.CreateBuilder(args);
 
