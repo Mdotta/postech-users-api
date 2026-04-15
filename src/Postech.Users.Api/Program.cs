@@ -1,4 +1,3 @@
-using Microsoft.Net.Http.Headers;
 using postech.Users.Api.Extensions;
 using Serilog;
 
@@ -6,12 +5,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 #region [Logging Configuration]
 
-// Bootstrap logger
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateLogger();
 
-// Main logger
 builder.Host.UseSerilog((context, services, options) =>
 {
     options
@@ -25,9 +22,8 @@ builder.Host.UseSerilog((context, services, options) =>
 
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructure(builder.Configuration);
-
 builder.Services.AddMessaging(builder.Configuration);
-builder.Services.AddJwtAuthentication(builder.Configuration);
+builder.Services.AddCognitoAuthentication(builder.Configuration); // was AddJwtAuthentication
 builder.Services.AddOpenApiWithAuth();
 
 #endregion
@@ -37,7 +33,6 @@ var app = builder.Build();
 #region [App Extensions]
 
 await app.ApplyMigrationsAsync();
-
 app.ConfigurePipeline();
 
 #endregion
@@ -55,4 +50,3 @@ finally
 {
     Log.CloseAndFlush();
 }
-

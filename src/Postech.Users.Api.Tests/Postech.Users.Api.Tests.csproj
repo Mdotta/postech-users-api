@@ -24,4 +24,10 @@
     <ProjectReference Include="..\postech.Users.Api\postech.Users.Api.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="Postech.Shared">
+      <HintPath>..\..\Postech.Shared.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>

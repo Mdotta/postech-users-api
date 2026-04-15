@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using System.Text;
+using Amazon.SimpleNotificationService;
+using Amazon.SQS;
 using postech.Users.Api.Application.Services;
 using Postech.Shared.Contracts.Events;
 using postech.Users.Api.Domain.Authorization;
@@ -24,7 +26,7 @@ public static class ServiceCollectionExtensions
         services.AddHttpContextAccessor();
         services.AddScoped<ICorrelationContext, CorrelationContext>();
         services.AddScoped<IUserService, UserService>();
-        services.AddScoped<ITokenService, TokenService>();
+        services.AddScoped<ICognitoAuthService, CognitoAuthService>();
         services.AddScoped<IAuthorizationService, AuthorizationService>();
         
         return services;
@@ -42,97 +44,96 @@ public static class ServiceCollectionExtensions
         // Repositories
         services.AddScoped<IUserRepository, UserRepository>();
 
-        // Messaging
-        services.AddScoped<IEventPublisher, RabbitMqEventPublisher>();
-
         return services;
     }
 
     public static IServiceCollection AddMessaging(this IServiceCollection services, IConfiguration configuration)
     {
-        var rabbitMqHost = configuration["RabbitMQ:Host"] ?? "localhost";
-        var rabbitMqPort = configuration.GetValue<ushort>("RabbitMQ:Port", 5672);
-        var rabbitMqUser = configuration["RabbitMQ:Username"] ?? "guest";
-        var rabbitMqPass = configuration["RabbitMQ:Password"] ?? "guest";
-        var rabbitMqVHost = configuration["RabbitMQ:VirtualHost"] ?? "/";
-        
-        Log.Information("Configuring RabbitMQ with Host: {Host}, Port: {Port}, User: {User}, VirtualHost: {VHost}",
-            rabbitMqHost,
-            rabbitMqPort,
-            rabbitMqUser,
-            rabbitMqVHost);
-        
+        services.AddDefaultAWSOptions(configuration.GetAWSOptions());
+        services.AddAWSService<IAmazonSimpleNotificationService>();
+        services.AddScoped<IEventPublisher, SqsEventPublisher>();
+
+        var massTransitLicense = configuration["MassTransit:License"] ?? Environment.GetEnvironmentVariable("MT_LICENSE");
+        var massTransitLicensePath = configuration["MassTransit:LicensePath"] ?? Environment.GetEnvironmentVariable("MT_LICENSE_PATH");
+
+        var region = configuration["AWS:Region"] ?? "us-east-1";
+        var accessKey = configuration["AWS:AccessKey"];
+        var secretKey = configuration["AWS:SecretKey"];
+        var serviceUrl = configuration["AWS:ServiceURL"];
+
+        var hasMassTransitLicense = !string.IsNullOrWhiteSpace(massTransitLicensePath) || !string.IsNullOrWhiteSpace(massTransitLicense);
+
         services.AddMassTransit(x =>
         {
             x.SetKebabCaseEndpointNameFormatter();
 
-            x.UsingRabbitMq((context, cfg) =>
+            x.UsingAmazonSqs((context, cfg) =>
             {
-                cfg.Host(rabbitMqHost, rabbitMqPort, rabbitMqVHost, h =>
-                {
-                    h.Username(rabbitMqUser);
-                    h.Password(rabbitMqPass);
+                if (!string.IsNullOrWhiteSpace(massTransitLicensePath))
+                    cfg.SetLicenseLocation(massTransitLicensePath);
+                else
+                    cfg.SetLicense(massTransitLicense!);
 
-                    h.RequestedConnectionTimeout(TimeSpan.FromSeconds(30));
-                    h.Heartbeat(TimeSpan.FromSeconds(10));
+                cfg.Host(region, h =>
+                {
+                    if (!string.IsNullOrWhiteSpace(accessKey) && !string.IsNullOrWhiteSpace(secretKey))
+                    {
+                        h.AccessKey(accessKey);
+                        h.SecretKey(secretKey);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(serviceUrl))
+                    {
+                        h.Config(new AmazonSQSConfig { ServiceURL = serviceUrl });
+                        h.Config(new AmazonSimpleNotificationServiceConfig { ServiceURL = serviceUrl });
+                    }
                 });
 
-                cfg.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
-                cfg.PrefetchCount = 16;
-                
-                cfg.Message<UserCreatedEvent>(x => x.SetEntityName("UserCreatedEvent"));
-                
                 cfg.ConfigureEndpoints(context);
             });
         });
 
         return services;
     }
-
-    public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
+    
+    public static IServiceCollection AddCognitoAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
-        var jwtSecret = configuration["JwtSettings:SecretKey"] 
-                        ?? throw new InvalidOperationException("JWT Secret is not configured");
+        var region     = configuration["CognitoSettings:Region"]     ?? "us-east-1";
+        var userPoolId = configuration["CognitoSettings:UserPoolId"]
+                         ?? throw new InvalidOperationException("CognitoSettings:UserPoolId is not configured");
+        var clientId   = configuration["CognitoSettings:ClientId"]
+                         ?? throw new InvalidOperationException("CognitoSettings:ClientId is not configured");
 
-        var jwtIssuer = configuration["JwtSettings:Issuer"]
-                        ?? throw new InvalidOperationException("JWT Issuer is not configured");
-
-        var jwtAudience = configuration["JwtSettings:Audience"]
-                          ?? throw new InvalidOperationException("JWT Audience is not configured");
-
-        var key = Encoding.UTF8.GetBytes(jwtSecret);
+        var issuer = $"https://cognito-idp.{region}.amazonaws.com/{userPoolId}";
 
         services.AddAuthentication(options =>
-        {
-            options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-        })
-        .AddJwtBearer(options =>
-        {
-            options.RequireHttpsMetadata = false; // Dev only
-            options.SaveToken = true;
-            options.TokenValidationParameters = new TokenValidationParameters
             {
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(key),
-                ValidateIssuer = true,
-                ValidIssuer = jwtIssuer,
-                ValidateAudience = true,
-                ValidAudience = jwtAudience,
-                ValidateLifetime = true,
-                ClockSkew = TimeSpan.Zero,
-                RoleClaimType = ClaimTypes.Role
-            };
-        });
-    
-        // Configurar Policies
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.Authority           = issuer;   // auto-fetches JWKS from Cognito
+                options.Audience            = clientId;
+                options.RequireHttpsMetadata = true;
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    ValidateIssuer           = true,
+                    ValidIssuer              = issuer,
+                    ValidateAudience         = false,   // Cognito uses 'client_id', not 'aud'
+                    ValidateLifetime         = true,
+                    RoleClaimType            = "cognito:groups" // roles assigned in Cognito groups
+                };
+            });
+
         services.AddAuthorizationBuilder()
             .AddPolicy(Policies.RequireAdminRole, policy => policy.RequireRole(UserRoles.Administrator.ToString()))
-            .AddPolicy(Policies.RequireUserRole, policy => policy.RequireRole(UserRoles.User.ToString(), UserRoles.Administrator.ToString()));
+            .AddPolicy(Policies.RequireUserRole,  policy => policy.RequireRole(UserRoles.User.ToString(), UserRoles.Administrator.ToString()));
 
         return services;
     }
-
+    
     public static IServiceCollection AddOpenApiWithAuth(this IServiceCollection services)
     {
         services.AddOpenApi(options =>
