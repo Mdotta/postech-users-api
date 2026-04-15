@@ -8,11 +8,11 @@ set -euo pipefail
 # Safe to re-run — skips already existing resources.
 #
 # Usage:
-#   ./setup-api-gateway.sh
+#   ./infra/setup-api-gateway.sh
 #
 # Required environment variables:
 #   AWS_ACCOUNT_ID  - Your AWS account ID
-#   JWT_ISSUER      - Cognito issuer URL
+#   JWT_ISSUER      - Cognito issuer URL (e.g. https://cognito-idp.us-east-1.amazonaws.com/<pool-id>)
 #   JWT_AUDIENCE    - Cognito App Client ID
 #
 # Optional:
@@ -31,6 +31,7 @@ STAGE_NAME="${STAGE_NAME:-prod}"
 
 log()  { echo "[$(date '+%H:%M:%S')] $*"; }
 ok()   { echo "[$(date '+%H:%M:%S')] ✅ $*"; }
+warn() { echo "[$(date '+%H:%M:%S')] ⚠️  $*"; }
 fail() { echo "[$(date '+%H:%M:%S')] ❌ $*" >&2; exit 1; }
 
 command -v aws &>/dev/null || fail "aws CLI is not installed"
@@ -103,7 +104,8 @@ else
 fi
 
 # --- Step 3: Create or update integration ------------------------------------
-# Always updates to the current EC2 IP
+# Uses overwrite:path to strip the stage prefix (/prod) before forwarding to EC2
+# so /prod/auth/register becomes /auth/register on the app side
 log "Setting up HTTP integration → http://$EC2_IP..."
 EXISTING_INTEGRATION_ID=$(aws apigatewayv2 get-integrations \
   --api-id "$API_ID" \
@@ -112,27 +114,33 @@ EXISTING_INTEGRATION_ID=$(aws apigatewayv2 get-integrations \
   --output text)
 
 if [[ -n "$EXISTING_INTEGRATION_ID" && "$EXISTING_INTEGRATION_ID" != "None" ]]; then
-  log "Integration exists ($EXISTING_INTEGRATION_ID), updating URI to current EC2 IP..."
+  log "Integration exists ($EXISTING_INTEGRATION_ID), updating URI and path mapping..."
   aws apigatewayv2 update-integration \
     --api-id "$API_ID" \
     --integration-id "$EXISTING_INTEGRATION_ID" \
-    --integration-uri "http://$EC2_IP/{proxy}" \
+    --integration-uri "http://$EC2_IP" \
+    --request-parameters '{"overwrite:path": "$request.path"}' \
     --region "$AWS_REGION" > /dev/null
   INTEGRATION_ID="$EXISTING_INTEGRATION_ID"
-  ok "Integration updated → http://$EC2_IP/{proxy}"
+  ok "Integration updated → http://$EC2_IP (path stripping enabled)"
 else
   INTEGRATION_ID=$(aws apigatewayv2 create-integration \
     --region "$AWS_REGION" \
     --api-id "$API_ID" \
     --integration-type HTTP_PROXY \
-    --integration-uri "http://$EC2_IP/{proxy}" \
+    --integration-uri "http://$EC2_IP" \
     --integration-method ANY \
     --payload-format-version "1.0" \
+    --request-parameters '{"overwrite:path": "$request.path"}' \
     --query 'IntegrationId' --output text)
-  ok "Integration created: $INTEGRATION_ID"
+  ok "Integration created: $INTEGRATION_ID → http://$EC2_IP (path stripping enabled)"
 fi
 
 # --- Step 4: Create routes ---------------------------------------------------
+# Route strategy:
+#   - Specific JWT-protected routes declared explicitly
+#   - $default catches everything else (auth, health, scalar) with no auth
+#   - No {proxy} path variables needed — overwrite:path handles forwarding
 log "Creating routes..."
 
 create_route_if_not_exists() {
@@ -168,15 +176,12 @@ create_route_if_not_exists() {
   ok "Route created: $ROUTE_KEY ($AUTH_TYPE)"
 }
 
-# Public routes (no auth)
-create_route_if_not_exists "POST /api/auth/{proxy+}"   "NONE"
-create_route_if_not_exists "GET /health"               "NONE"
-
 # Protected routes (JWT required)
-create_route_if_not_exists "GET /api/users/{proxy+}"    "JWT"
-create_route_if_not_exists "PATCH /api/users/{proxy+}"  "JWT"  # UpdateUserStatus
-create_route_if_not_exists "PUT /api/users/{proxy+}"    "JWT"
-create_route_if_not_exists "DELETE /api/users/{proxy+}" "JWT"
+create_route_if_not_exists "GET /users/{proxy+}"   "JWT"
+create_route_if_not_exists "PATCH /users/{proxy+}" "JWT"
+
+# $default catches all unmatched routes (auth, health, scalar) — no JWT
+create_route_if_not_exists '$default' "NONE"
 
 # --- Step 5: Create stage ----------------------------------------------------
 log "Checking stage '$STAGE_NAME'..."
@@ -220,15 +225,18 @@ echo "  # Health check (public)"
 echo "  curl $INVOKE_URL/health"
 echo ""
 echo "  # Register (public)"
-echo "  curl -X POST $INVOKE_URL/api/auth/register \\"
+echo "  curl -X POST $INVOKE_URL/auth/register \\"
 echo "    -H 'Content-Type: application/json' \\"
 echo "    -d '{\"email\":\"test@test.com\",\"password\":\"Test@1234\",\"name\":\"Test\"}'"
 echo ""
 echo "  # Login"
-echo "  TOKEN=\$(curl -s -X POST $INVOKE_URL/api/auth/login \\"
+echo "  TOKEN=\$(curl -s -X POST $INVOKE_URL/auth/login \\"
 echo "    -H 'Content-Type: application/json' \\"
 echo "    -d '{\"email\":\"test@test.com\",\"password\":\"Test@1234\"}' | jq -r '.token')"
 echo ""
 echo "  # Get current user (protected)"
-echo "  curl $INVOKE_URL/api/users/me \\"
+echo "  curl $INVOKE_URL/users/me \\"
 echo "    -H \"Authorization: Bearer \$TOKEN\""
+echo ""
+echo "  # Should return 401"
+echo "  curl $INVOKE_URL/users/me"

@@ -47,10 +47,22 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddMessaging(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddDefaultAWSOptions(configuration.GetAWSOptions());
-        services.AddAWSService<IAmazonSimpleNotificationService>();
-        services.AddScoped<IEventPublisher, SnsEventPublisher>(); // ← was SqsEventPublisher
+        var serviceUrl = configuration["AWS:ServiceURL"];
 
+        if (!string.IsNullOrWhiteSpace(serviceUrl))
+        {
+            services.AddSingleton<IAmazonSimpleNotificationService>(_ =>
+                new AmazonSimpleNotificationServiceClient(
+                    new AmazonSimpleNotificationServiceConfig { ServiceURL = serviceUrl }
+                ));
+        }
+        else
+        {
+            services.AddDefaultAWSOptions(configuration.GetAWSOptions());
+            services.AddAWSService<IAmazonSimpleNotificationService>();
+        }
+
+        services.AddScoped<IEventPublisher, SnsEventPublisher>();
         return services;
     }
     

@@ -23,6 +23,7 @@ set -euo pipefail
 #   KEY_NAME              - Defaults to postech-key
 #   API_NAME              - API Gateway name (default: postech-users-gateway)
 #   RDS_INSTANCE_ID       - RDS instance identifier (default: postech-users)
+#   EC2_SG_NAME           - EC2 security group name (default: postech-api-sg)
 # =============================================================================
 
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:?❌ AWS_ACCOUNT_ID is not set}"
@@ -198,6 +199,7 @@ else
 fi
 
 # --- Step 8: Update API Gateway integration with new EC2 IP ------------------
+# Uses overwrite:path to strip the stage prefix before forwarding to EC2
 log "Updating API Gateway integration with new EC2 IP ($PUBLIC_IP)..."
 
 API_ID=$(aws apigatewayv2 get-apis \
@@ -206,7 +208,6 @@ API_ID=$(aws apigatewayv2 get-apis \
   --output text 2>/dev/null) || API_ID=""
 
 if [[ -n "$API_ID" && "$API_ID" != "None" ]]; then
-  # Get existing integration ID
   INTEGRATION_ID=$(aws apigatewayv2 get-integrations \
     --api-id "$API_ID" \
     --region "$AWS_REGION" \
@@ -217,9 +218,10 @@ if [[ -n "$API_ID" && "$API_ID" != "None" ]]; then
     aws apigatewayv2 update-integration \
       --api-id "$API_ID" \
       --integration-id "$INTEGRATION_ID" \
-      --integration-uri "http://$PUBLIC_IP/{proxy}" \
+      --integration-uri "http://$PUBLIC_IP" \
+      --request-parameters '{"overwrite:path": "$request.path"}' \
       --region "$AWS_REGION" > /dev/null
-    ok "API Gateway integration updated → http://$PUBLIC_IP/{proxy}"
+    ok "API Gateway integration updated → http://$PUBLIC_IP (path stripping enabled)"
   else
     warn "No existing API Gateway integration found — run setup-api-gateway.sh first."
   fi
@@ -253,4 +255,4 @@ echo "📋 First-time API Gateway setup:"
 echo "   AWS_ACCOUNT_ID=\"$AWS_ACCOUNT_ID\" \\"
 echo "   JWT_AUDIENCE=\"$COGNITO_CLIENT_ID\" \\"
 echo "   JWT_ISSUER=\"$ISSUER\" \\"
-echo "   ./setup-api-gateway.sh"
+echo "   ./infra/setup-api-gateway.sh"
