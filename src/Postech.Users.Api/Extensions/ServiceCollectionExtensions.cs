@@ -53,15 +53,10 @@ public static class ServiceCollectionExtensions
         services.AddAWSService<IAmazonSimpleNotificationService>();
         services.AddScoped<IEventPublisher, SqsEventPublisher>();
 
-        var massTransitLicense = configuration["MassTransit:License"] ?? Environment.GetEnvironmentVariable("MT_LICENSE");
-        var massTransitLicensePath = configuration["MassTransit:LicensePath"] ?? Environment.GetEnvironmentVariable("MT_LICENSE_PATH");
-
         var region = configuration["AWS:Region"] ?? "us-east-1";
         var accessKey = configuration["AWS:AccessKey"];
         var secretKey = configuration["AWS:SecretKey"];
         var serviceUrl = configuration["AWS:ServiceURL"];
-
-        var hasMassTransitLicense = !string.IsNullOrWhiteSpace(massTransitLicensePath) || !string.IsNullOrWhiteSpace(massTransitLicense);
 
         services.AddMassTransit(x =>
         {
@@ -69,11 +64,6 @@ public static class ServiceCollectionExtensions
 
             x.UsingAmazonSqs((context, cfg) =>
             {
-                if (!string.IsNullOrWhiteSpace(massTransitLicensePath))
-                    cfg.SetLicenseLocation(massTransitLicensePath);
-                else
-                    cfg.SetLicense(massTransitLicense!);
-
                 cfg.Host(region, h =>
                 {
                     if (!string.IsNullOrWhiteSpace(accessKey) && !string.IsNullOrWhiteSpace(secretKey))
