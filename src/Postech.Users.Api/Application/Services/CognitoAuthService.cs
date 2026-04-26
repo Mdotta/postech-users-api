@@ -1,6 +1,7 @@
 using Amazon;
 using Amazon.CognitoIdentityProvider;
 using Amazon.CognitoIdentityProvider.Model;
+using postech.Users.Api.Domain.Enums;
 
 namespace postech.Users.Api.Application.Services;
 
@@ -27,7 +28,7 @@ public class CognitoAuthService : ICognitoAuthService
         _cognitoClient = new AmazonCognitoIdentityProviderClient(RegionEndpoint.GetBySystemName(region));
     }
 
-    public async Task RegisterAsync(string email, string password, string name, CancellationToken cancellationToken = default)
+    public async Task<string> RegisterAsync(string email, string password, string name, UserRoles role, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Registering user {Email} in Cognito", email);
 
@@ -43,7 +44,7 @@ public class CognitoAuthService : ICognitoAuthService
             }
         };
 
-        await _cognitoClient.SignUpAsync(signUpRequest, cancellationToken);
+        var signUpResponse = await _cognitoClient.SignUpAsync(signUpRequest, cancellationToken);
 
         // Auto-confirm the user — no email verification step required
         var confirmRequest = new AdminConfirmSignUpRequest
@@ -54,7 +55,12 @@ public class CognitoAuthService : ICognitoAuthService
 
         await _cognitoClient.AdminConfirmSignUpAsync(confirmRequest, cancellationToken);
 
+        await SetUserRoleAsync(email, role, cancellationToken);
+
         _logger.LogInformation("User {Email} registered and confirmed in Cognito", email);
+
+        // SignUpResponse contains UserSub which is the Cognito `sub` (the user's id)
+        return signUpResponse.UserSub;
     }
 
     public async Task<string> LoginAsync(string email, string password, CancellationToken cancellationToken = default)
@@ -78,5 +84,53 @@ public class CognitoAuthService : ICognitoAuthService
 
         // IdToken contains the user's identity claims (email, name, cognito:groups etc.)
         return response.AuthenticationResult.IdToken;
+    }
+
+    public async Task SetUserRoleAsync(string email, UserRoles role, CancellationToken cancellationToken = default)
+    {
+        var targetGroup = role.ToString();
+
+        foreach (var groupName in Enum.GetNames<UserRoles>())
+        {
+            if (string.Equals(groupName, targetGroup, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            try
+            {
+                await _cognitoClient.AdminRemoveUserFromGroupAsync(new AdminRemoveUserFromGroupRequest
+                {
+                    UserPoolId = _userPoolId,
+                    Username = email,
+                    GroupName = groupName
+                }, cancellationToken);
+            }
+            catch (ResourceNotFoundException)
+            {
+                // Group does not exist yet; nothing to remove.
+            }
+            catch (UserNotFoundException)
+            {
+                // User not in this group; safe to ignore.
+            }
+            catch (NotAuthorizedException)
+            {
+                // User not in this group; safe to ignore.
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not remove user {Email} from group {GroupName}", email, groupName);
+            }
+        }
+
+        await _cognitoClient.AdminAddUserToGroupAsync(new AdminAddUserToGroupRequest
+        {
+            UserPoolId = _userPoolId,
+            Username = email,
+            GroupName = targetGroup
+        }, cancellationToken);
+
+        _logger.LogInformation("User {Email} assigned to Cognito group {GroupName}", email, targetGroup);
     }
 }

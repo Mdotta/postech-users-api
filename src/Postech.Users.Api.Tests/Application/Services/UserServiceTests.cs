@@ -37,6 +37,8 @@ public class UserServiceTests
         var request = new RegisterUserRequest("test@email.com", "Test User", "ValidP@ssw0rd123", UserRoles.User);
         _userRepository.EmailExistsAsync(request.Email, Arg.Any<CancellationToken>()).Returns(false);
         _authorizationService.IsCurrentUserAdmin().Returns(false);
+        _cognitoAuthService.RegisterAsync(request.Email, request.Password, request.Name, UserRoles.User, Arg.Any<CancellationToken>())
+            .Returns(Guid.NewGuid().ToString());
 
         var userService = GetUserService();
 
@@ -47,7 +49,7 @@ public class UserServiceTests
         result.IsError.Should().BeFalse();
         result.Value.Email.Should().Be(request.Email);
         result.Value.Name.Should().Be(request.Name);
-        await _cognitoAuthService.Received(1).RegisterAsync(request.Email, request.Password, request.Name, Arg.Any<CancellationToken>());
+        await _cognitoAuthService.Received(1).RegisterAsync(request.Email, request.Password, request.Name, UserRoles.User, Arg.Any<CancellationToken>());
         await _userRepository.Received(1).AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
         await _eventPublisher.Received(1).PublishAsync(Arg.Any<UserCreatedEvent>(), Arg.Any<CancellationToken>());
     }
@@ -67,7 +69,7 @@ public class UserServiceTests
         // Assert
         result.IsError.Should().BeTrue();
         result.FirstError.Code.Should().Be(Errors.User.EmailAlreadyExists.Code);
-        await _cognitoAuthService.DidNotReceive().RegisterAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _cognitoAuthService.DidNotReceive().RegisterAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<UserRoles>(), Arg.Any<CancellationToken>());
         await _userRepository.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
 
@@ -85,7 +87,7 @@ public class UserServiceTests
         // Assert
         result.IsError.Should().BeTrue();
         result.Errors.Should().HaveCountGreaterThan(0);
-        await _cognitoAuthService.DidNotReceive().RegisterAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _cognitoAuthService.DidNotReceive().RegisterAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<UserRoles>(), Arg.Any<CancellationToken>());
         await _userRepository.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
 
@@ -105,7 +107,7 @@ public class UserServiceTests
         // Assert
         result.IsError.Should().BeTrue();
         result.FirstError.Code.Should().Be(Errors.User.ForbiddenAdminCreation.Code);
-        await _cognitoAuthService.DidNotReceive().RegisterAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _cognitoAuthService.DidNotReceive().RegisterAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<UserRoles>(), Arg.Any<CancellationToken>());
         await _userRepository.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
 
@@ -116,6 +118,8 @@ public class UserServiceTests
         var request = new RegisterUserRequest("admin@email.com", "Admin User", "ValidP@ssw0rd123", UserRoles.Administrator);
         _userRepository.EmailExistsAsync(request.Email, Arg.Any<CancellationToken>()).Returns(false);
         _authorizationService.IsCurrentUserAdmin().Returns(true);
+        _cognitoAuthService.RegisterAsync(request.Email, request.Password, request.Name, UserRoles.Administrator, Arg.Any<CancellationToken>())
+            .Returns(Guid.NewGuid().ToString());
 
         var userService = GetUserService();
 
@@ -125,7 +129,7 @@ public class UserServiceTests
         // Assert
         result.IsError.Should().BeFalse();
         result.Value.Role.Should().Be(UserRoles.Administrator.ToString());
-        await _cognitoAuthService.Received(1).RegisterAsync(request.Email, request.Password, request.Name, Arg.Any<CancellationToken>());
+        await _cognitoAuthService.Received(1).RegisterAsync(request.Email, request.Password, request.Name, UserRoles.Administrator, Arg.Any<CancellationToken>());
         await _userRepository.Received(1).AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
 
@@ -136,6 +140,8 @@ public class UserServiceTests
         var request = new RegisterUserRequest("test@email.com", "Test User", "ValidP@ssw0rd123", UserRoles.User);
         _userRepository.EmailExistsAsync(request.Email, Arg.Any<CancellationToken>()).Returns(false);
         _authorizationService.IsCurrentUserAdmin().Returns(false);
+        _cognitoAuthService.RegisterAsync(request.Email, request.Password, request.Name, UserRoles.User, Arg.Any<CancellationToken>())
+            .Returns(Guid.NewGuid().ToString());
 
         var userService = GetUserService();
 
@@ -276,6 +282,7 @@ public class UserServiceTests
         // Assert
         result.IsError.Should().BeFalse();
         await _userRepository.Received(1).UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+        await _cognitoAuthService.Received(1).SetUserRoleAsync(user.Email, UserRoles.Administrator, Arg.Any<CancellationToken>());
     }
 
     [Fact]

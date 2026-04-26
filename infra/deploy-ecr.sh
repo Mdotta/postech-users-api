@@ -52,7 +52,13 @@ aws ecr get-login-password --region "$AWS_REGION" | \
   docker login --username AWS --password-stdin "$ECR_REGISTRY"
 ok "Authenticated with ECR"
 
-# --- Step 3: Build and push --------------------------------------------------
+# --- Step 3: Ensure ECR repository exists ------------------------------------
+log "Ensuring ECR repository '$ECR_REPO' exists..."
+aws ecr describe-repositories --repository-names "$ECR_REPO" --region "$AWS_REGION" &>/dev/null || \
+  aws ecr create-repository --repository-name "$ECR_REPO" --region "$AWS_REGION" > /dev/null
+ok "ECR repository ready: $ECR_REPO"
+
+# --- Step 4: Build and push --------------------------------------------------
 log "Building and pushing image for $PLATFORM..."
 docker buildx build \
   --platform "$PLATFORM" \

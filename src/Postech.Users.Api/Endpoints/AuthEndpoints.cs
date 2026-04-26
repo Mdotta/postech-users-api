@@ -55,6 +55,6 @@ public static class AuthEndpoints
             });
         }
 
-        return TypedResults.Created($"/api/users/{result.Value.Id}", result.Value);
+        return TypedResults.Created($"/users/{result.Value.Id}", result.Value);
     }
 }

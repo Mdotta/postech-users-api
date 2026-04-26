@@ -61,9 +61,10 @@ public class UserService : IUserService
         }
 
         // Register in Cognito first — if this fails, we don't save to DB
+        string cognitoSub;
         try
         {
-            await _cognitoAuthService.RegisterAsync(request.Email, request.Password, request.Name, cancellationToken);
+            cognitoSub = await _cognitoAuthService.RegisterAsync(request.Email, request.Password, request.Name, role, cancellationToken);
         }
         catch (UsernameExistsException)
         {
@@ -76,9 +77,18 @@ public class UserService : IUserService
             return Error.Failure("Cognito.RegistrationFailed", "Failed to register user in authentication provider.");
         }
 
-        // Save to local DB
+        // Save to local DB — use Cognito `sub` as the local user Id so both ids match
         var passwordHash = User.HashPassword(request.Password);
         var user = new User(request.Email, request.Name, passwordHash, role);
+
+        if (string.IsNullOrWhiteSpace(cognitoSub) || !Guid.TryParse(cognitoSub, out var subGuid))
+        {
+            _logger.LogError("Cognito returned invalid sub for email {Email}: {Sub}", request.Email, cognitoSub);
+            return Error.Failure("Cognito.InvalidSub", "Cognito returned an invalid user id (sub).");
+        }
+
+        user.Id = subGuid;
+
         await _userRepository.AddAsync(user, cancellationToken);
 
         var userCreatedEvent = new UserCreatedEvent
@@ -89,7 +99,16 @@ public class UserService : IUserService
             CreatedAt = user.CreatedAt
         };
 
-        await _eventPublisher.PublishAsync(userCreatedEvent, cancellationToken);
+        try
+        {
+            await _eventPublisher.PublishAsync(userCreatedEvent, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // User is already committed — log and continue rather than returning 500.
+            // The event can be retried or replayed from the DB if needed.
+            _logger.LogError(ex, "Failed to publish UserCreatedEvent for user {UserId}. User was saved successfully.", user.Id);
+        }
 
         _logger.LogInformation("User {UserId} registered successfully", user.Id);
 
@@ -137,6 +156,16 @@ public class UserService : IUserService
         return MapToResponse(user);
     }
 
+    public async Task<ErrorOr<UserResponse>> GetUserByEmailAsync(string email, CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByEmailAsync(email, cancellationToken);
+
+        if (user == null)
+            return Errors.User.NotFound;
+
+        return MapToResponse(user);
+    }
+
     public async Task<ErrorOr<Success>> UpdateRole(Guid id, RequestUpdateUserRole request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Updating user {UserId} role to {Role}", id, request.Role);
@@ -151,6 +180,16 @@ public class UserService : IUserService
 
         user.UpdateRole(request.Role);
         await _userRepository.UpdateAsync(user, cancellationToken);
+
+        try
+        {
+            await _cognitoAuthService.SetUserRoleAsync(user.Email, request.Role, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to sync Cognito role for user {UserId}", id);
+            return Error.Failure("Cognito.RoleSyncFailed", "User role updated in DB but failed to sync role in Cognito.");
+        }
 
         _logger.LogInformation("User {UserId} role updated successfully to {Role}", id, request.Role);
 

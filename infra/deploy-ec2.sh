@@ -13,30 +13,35 @@ set -euo pipefail
 # Required environment variables:
 #   AWS_ACCOUNT_ID        - Your AWS account ID
 #   DB_CONNECTION_STRING  - Full PostgreSQL connection string
-#   SNS_TOPIC_ARN         - ARN of the SNS user-events topic
-#   COGNITO_USER_POOL_ID  - Cognito User Pool ID (e.g. us-east-1_eWFpSqOyW)
+#                           (set automatically by setup-rds.sh via deployment.env)
+#   SNS_TOPIC_ARN         - ARN of the SNS user-created topic
+#                           (or set USERS_SNS_TOPIC_ARN from deployment.env)
+#   COGNITO_USER_POOL_ID  - Cognito User Pool ID
+#                           (set automatically by setup-cognito.sh via deployment.env)
 #   COGNITO_CLIENT_ID     - Cognito App Client ID
+#                           (set automatically by setup-cognito.sh via deployment.env)
 #
 # Optional:
 #   AWS_REGION            - Defaults to us-east-1
 #   INSTANCE_TYPE         - Defaults to t3.micro
 #   KEY_NAME              - Defaults to postech-key
-#   API_NAME              - API Gateway name (default: postech-users-gateway)
-#   RDS_INSTANCE_ID       - RDS instance identifier (default: postech-users)
+#   API_NAME              - API Gateway name (default: postech-gateway)
+#   RDS_INSTANCE_ID       - RDS instance identifier (default: postech-db)
 #   EC2_SG_NAME           - EC2 security group name (default: postech-api-sg)
 # =============================================================================
 
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:?❌ AWS_ACCOUNT_ID is not set}"
 DB_CONNECTION_STRING="${DB_CONNECTION_STRING:?❌ DB_CONNECTION_STRING is not set}"
-SNS_TOPIC_ARN="${SNS_TOPIC_ARN:?❌ SNS_TOPIC_ARN is not set}"
+SNS_TOPIC_ARN="${SNS_TOPIC_ARN:-${USERS_SNS_TOPIC_ARN:-}}"
+SNS_TOPIC_ARN="${SNS_TOPIC_ARN:?❌ SNS_TOPIC_ARN or USERS_SNS_TOPIC_ARN is not set}"
 COGNITO_USER_POOL_ID="${COGNITO_USER_POOL_ID:?❌ COGNITO_USER_POOL_ID is not set}"
 COGNITO_CLIENT_ID="${COGNITO_CLIENT_ID:?❌ COGNITO_CLIENT_ID is not set}"
 
 AWS_REGION="${AWS_REGION:-us-east-1}"
 INSTANCE_TYPE="${INSTANCE_TYPE:-t3.micro}"
 KEY_NAME="${KEY_NAME:-postech-key}"
-API_NAME="${API_NAME:-postech-users-gateway}"
-RDS_INSTANCE_ID="${RDS_INSTANCE_ID:-postech-users}"
+API_NAME="${API_NAME:-postech-gateway}"
+RDS_INSTANCE_ID="${RDS_INSTANCE_ID:-postech-db}"
 EC2_SG_NAME="${EC2_SG_NAME:-postech-api-sg}"
 
 ECR_REGISTRY="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"

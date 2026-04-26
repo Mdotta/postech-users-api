@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using postech.Users.Api.Application.DTOs;
 using postech.Users.Api.Application.Services;
 using postech.Users.Api.Domain.Authorization;
+using AppClaimTypes = postech.Users.Api.Application.Constants.ClaimTypes;
 
 namespace postech.Users.Api.Endpoints;
 
@@ -54,14 +55,36 @@ public static class UserEndpoints
         [FromServices] IUserService userService,
         CancellationToken cancellationToken)
     {
-        var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var userIdClaim = user.FindFirst(AppClaimTypes.AppUserId)?.Value
+                          ?? user.FindFirst(AppClaimTypes.AlternateAppUserId)?.Value
+                          ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        if (!string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var userId))
+        {
+            var userById = await userService.GetUserByIdAsync(userId, cancellationToken);
+
+            if (userById.IsError)
+            {
+                return Results.NotFound(new ProblemDetails
+                {
+                    Status = StatusCodes.Status404NotFound,
+                    Title = "User not found",
+                    Detail = string.Join(";\n", userById.Errors.Select(e => e.Description))
+                });
+            }
+
+            return Results.Ok(userById.Value);
+        }
+
+        var emailClaim = user.FindFirst(AppClaimTypes.Email)?.Value
+                         ?? user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+
+        if (string.IsNullOrWhiteSpace(emailClaim))
         {
             return Results.Unauthorized();
         }
 
-        var result = await userService.GetUserByIdAsync(userId, cancellationToken);
+        var result = await userService.GetUserByEmailAsync(emailClaim, cancellationToken);
 
         if (result.IsError)
         {
