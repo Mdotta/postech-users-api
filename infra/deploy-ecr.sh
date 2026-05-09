@@ -14,13 +14,13 @@ set -euo pipefail
 #
 # Optional environment variables:
 #   AWS_REGION      - AWS region where ECR lives (default: us-east-1)
-#   ECR_REPO        - ECR repository name (default: postech-users-api)
+#   ECR_REPO        - ECR repository name (default: tf-postech-postech-users-api)
 #   IMAGE_TAG       - Image tag (default: latest)
 # =============================================================================
 
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:?❌ AWS_ACCOUNT_ID is not set}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
-ECR_REPO="${ECR_REPO:-postech-users-api}"
+ECR_REPO="${ECR_REPO:-tf-postech-postech-users-api}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 PLATFORM="linux/amd64"
 
@@ -52,10 +52,10 @@ aws ecr get-login-password --region "$AWS_REGION" | \
   docker login --username AWS --password-stdin "$ECR_REGISTRY"
 ok "Authenticated with ECR"
 
-# --- Step 3: Ensure ECR repository exists ------------------------------------
-log "Ensuring ECR repository '$ECR_REPO' exists..."
+# --- Step 3: Verify ECR repository exists (created by Terraform) ---------------
+log "Verifying ECR repository '$ECR_REPO' exists..."
 aws ecr describe-repositories --repository-names "$ECR_REPO" --region "$AWS_REGION" &>/dev/null || \
-  aws ecr create-repository --repository-name "$ECR_REPO" --region "$AWS_REGION" > /dev/null
+  fail "ECR repository '$ECR_REPO' not found. Run 'terraform apply' first to create it."
 ok "ECR repository ready: $ECR_REPO"
 
 # --- Step 4: Build and push --------------------------------------------------
