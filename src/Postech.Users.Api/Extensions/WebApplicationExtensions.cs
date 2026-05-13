@@ -26,7 +26,7 @@ public static class WebApplicationExtensions
         app.UseAuthentication();
         app.UseAuthorization();
 
-        // Scalar em /scalar/v1 junta paths de forma que "openapi/v1.json" vira /scalar/openapi/v1.json (404).
+        // Scalar 
         app.MapOpenApi();
         app.MapScalarApiReference(options =>
             options.WithOpenApiRoutePattern("../openapi/{documentName}.json"));
