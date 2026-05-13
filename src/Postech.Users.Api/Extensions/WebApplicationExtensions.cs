@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using postech.Users.Api.Endpoints;
 using postech.Users.Api.Infrastructure.Data;
 using postech.Users.Api.Middleware;
 using Microsoft.EntityFrameworkCore;
+using Prometheus;
 using Scalar.AspNetCore;
 
 namespace postech.Users.Api.Extensions;
@@ -13,6 +15,9 @@ public static class WebApplicationExtensions
         // Middleware
         app.UseMiddleware<CorrelationIdMiddleware>();
 
+        app.UseRouting();
+        app.UseHttpMetrics(options => options.AddCustomLabel("service", _ => "users-api"));
+
         if (app.Environment.IsDevelopment())
         {
             app.UseDeveloperExceptionPage();
@@ -21,9 +26,12 @@ public static class WebApplicationExtensions
         app.UseAuthentication();
         app.UseAuthorization();
 
-        // Scalar
+        // Scalar 
         app.MapOpenApi();
-        app.MapScalarApiReference();
+        app.MapScalarApiReference(options =>
+            options.WithOpenApiRoutePattern("../openapi/{documentName}.json"));
+
+        app.MapMetrics("/metrics").AllowAnonymous();
 
         // Map Endpoints
         app.MapAuthEndpoints();
