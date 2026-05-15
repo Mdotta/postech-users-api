@@ -16,7 +16,6 @@ public static class WebApplicationExtensions
         app.UseMiddleware<CorrelationIdMiddleware>();
 
         app.UseRouting();
-        app.UseHttpMetrics(options => options.AddCustomLabel("service", _ => "users-api"));
 
         if (app.Environment.IsDevelopment())
         {
@@ -26,17 +25,20 @@ public static class WebApplicationExtensions
         app.UseAuthentication();
         app.UseAuthorization();
 
+        app.MapHealthEndpoints();
+        app.MapMetrics("/metrics").AllowAnonymous();
+        
+        app.UseHttpMetrics(options => options.AddCustomLabel("service", _ => "users-api"));
+        
         // Scalar 
         app.MapOpenApi();
         app.MapScalarApiReference(options =>
             options.WithOpenApiRoutePattern("../openapi/{documentName}.json"));
 
-        app.MapMetrics("/metrics").AllowAnonymous();
 
         // Map Endpoints
         app.MapAuthEndpoints();
         app.MapUserEndpoints();
-        app.MapHealthEndpoints();
 
         return app;
     }
