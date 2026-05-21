@@ -7,6 +7,7 @@ using postech.Users.Api.Domain.Entities;
 using postech.Users.Api.Domain.Enums;
 using postech.Users.Api.Domain.Errors;
 using postech.Users.Api.Infrastructure.Messaging;
+using postech.Users.Api.Infrastructure.Metrics;
 using postech.Users.Api.Infrastructure.Repositories;
 
 namespace postech.Users.Api.Application.Services;
@@ -112,6 +113,8 @@ public class UserService : IUserService
 
         _logger.LogInformation("User {UserId} registered successfully", user.Id);
 
+        UsersMetrics.UsersRegistered.Inc();
+
         return MapToResponse(user);
     }
 
@@ -124,6 +127,7 @@ public class UserService : IUserService
         if (user == null)
         {
             _logger.LogWarning("Login failed: User {Email} not found in DB", request.Email);
+            UsersMetrics.UsersLoggedIn.WithLabels("failure").Inc();
             return Errors.User.InvalidCredentials;
         }
 
@@ -132,11 +136,13 @@ public class UserService : IUserService
         {
             var token = await _cognitoAuthService.LoginAsync(request.Email, request.Password, cancellationToken);
             _logger.LogInformation("User {UserId} logged in successfully", user.Id);
+            UsersMetrics.UsersLoggedIn.WithLabels("success").Inc();
             return token;
         }
         catch (NotAuthorizedException)
         {
             _logger.LogWarning("Login failed: Invalid credentials for email {Email}", request.Email);
+            UsersMetrics.UsersLoggedIn.WithLabels("failure").Inc();
             return Errors.User.InvalidCredentials;
         }
         catch (Exception ex)
