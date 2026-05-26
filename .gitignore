@@ -48,8 +48,13 @@ ScaffoldingReadMe.txt
 *~
 CodeCoverage/
 .idea/
-*/.ds_store
-.ds_store
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Private keys
+*.pem
 
 # MSBuild Binary and Structured Log
 *.binlog
