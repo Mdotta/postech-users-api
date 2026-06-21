@@ -14,13 +14,13 @@ set -euo pipefail
 #
 # Optional environment variables:
 #   AWS_REGION      - AWS region where ECR lives (default: us-east-1)
-#   ECR_REPO        - ECR repository name (default: tf-postech-postech-users-api)
+#   ECR_REPO        - ECR repository name (default: tf-postech-users-api)
 #   IMAGE_TAG       - Image tag (default: latest)
 # =============================================================================
 
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:?❌ AWS_ACCOUNT_ID is not set}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
-ECR_REPO="${ECR_REPO:-tf-postech-postech-users-api}"
+ECR_REPO="${ECR_REPO:-tf-postech-users-api}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 PLATFORM="linux/amd64"
 

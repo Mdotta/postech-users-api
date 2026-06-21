@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: users-api
-          image: 565655678867.dkr.ecr.us-east-1.amazonaws.com/tf-postech-postech-users-api:latest
+          image: 565655678867.dkr.ecr.us-east-1.amazonaws.com/tf-postech-users-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 80
