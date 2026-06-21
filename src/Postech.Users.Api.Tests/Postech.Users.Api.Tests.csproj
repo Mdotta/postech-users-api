@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\postech.Users.Api\postech.Users.Api.csproj" />
+    <ProjectReference Include="..\Postech.Users.Api\Postech.Users.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>
