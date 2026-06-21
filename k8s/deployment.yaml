@@ -27,6 +27,8 @@ spec:
             - containerPort: 80
           envFrom:
             - secretRef:
+                name: aws-credentials
+            - secretRef:
                 name: users-api-secret
             - configMapRef:
                 name: users-api-config

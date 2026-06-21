@@ -74,6 +74,13 @@ jobs:
           AWS_DEFAULT_REGION: ${{ vars.AWS_REGION }}
         run: |
           aws eks update-kubeconfig --region "$AWS_DEFAULT_REGION" --name tf-postech-eks
+
+          kubectl create secret generic aws-credentials \
+            --from-literal=AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+            --from-literal=AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+            --from-literal=AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
           kubectl apply -f k8s/
           kubectl set image deployment/users-api \
             users-api=${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ vars.ECR_REPO }}:${{ env.IMAGE_TAG }}
