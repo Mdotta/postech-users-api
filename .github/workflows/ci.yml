@@ -63,6 +63,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: master
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Deploy to EKS
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
