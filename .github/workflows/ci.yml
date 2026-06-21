@@ -36,12 +36,20 @@ jobs:
       - name: Test
         run: dotnet test src/Postech.Users.Api.sln --no-build --configuration Release
 
-      - name: Set AWS credentials
+      - name: Configure AWS credentials
         run: |
-          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
-          echo "AWS_SESSION_TOKEN=${{ secrets.AWS_SESSION_TOKEN }}" >> $GITHUB_ENV
-          echo "AWS_DEFAULT_REGION=${{ secrets.AWS_REGION }}" >> $GITHUB_ENV
+          mkdir -p ~/.aws
+          cat > ~/.aws/credentials << 'CREDENTIALS_EOF'
+          [default]
+          aws_access_key_id = ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key = ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws_session_token = ${{ secrets.AWS_SESSION_TOKEN }}
+          CREDENTIALS_EOF
+          cat > ~/.aws/config << 'CONFIG_EOF'
+          [default]
+          region = ${{ secrets.AWS_REGION }}
+          output = json
+          CONFIG_EOF
 
       - name: Login to ECR
         run: aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
