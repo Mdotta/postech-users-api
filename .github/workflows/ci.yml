@@ -1,0 +1,104 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  ECR_REPO: ${{ secrets.ECR_REPO }}
+  EC2_TAG_NAME: ${{ secrets.EC2_TAG_NAME }}
+  CONTAINER_NAME: ${{ secrets.CONTAINER_NAME }}
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    environment: master
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore src/Postech.Users.Api.sln
+
+      - name: Build
+        run: dotnet build src/Postech.Users.Api.sln --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test src/Postech.Users.Api.sln --no-build --configuration Release
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:latest
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
+          platforms: linux/amd64
+
+      - name: Deploy to EC2
+        run: |
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --region "$AWS_REGION" \
+            --filters "Name=tag:Name,Values=$EC2_TAG_NAME" \
+                      "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].InstanceId' \
+            --output text)
+
+          echo "Deploying to instance: $INSTANCE_ID"
+
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ]; then
+            echo "ERROR: No running EC2 instance found with tag Name=$EC2_TAG_NAME"
+            exit 1
+          fi
+
+          REGISTRY="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+          IMAGE="$REGISTRY/$ECR_REPO:latest"
+          ENV_FILE="/tmp/$CONTAINER_NAME.env"
+
+          cat > /tmp/ssm-commands.json << EOF
+          {
+            "commands": [
+              "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${REGISTRY}",
+              "docker inspect ${CONTAINER_NAME} --format '{{range .Config.Env}}{{println .}}{{end}}' > ${ENV_FILE} 2>/dev/null || true",
+              "docker pull ${IMAGE}",
+              "docker stop ${CONTAINER_NAME} 2>/dev/null || true",
+              "docker rm ${CONTAINER_NAME} 2>/dev/null || true",
+              "docker run -d --name ${CONTAINER_NAME} --restart unless-stopped -p 80:80 --env-file ${ENV_FILE} ${IMAGE}"
+            ]
+          }
+          EOF
+
+          aws ssm send-command \
+            --region "$AWS_REGION" \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters file:///tmp/ssm-commands.json
+
+          echo "Deploy command sent. Check AWS SSM for execution status."
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+          AWS_ACCOUNT_ID: ${{ env.AWS_ACCOUNT_ID }}
+          ECR_REPO: ${{ env.ECR_REPO }}
+          EC2_TAG_NAME: ${{ env.EC2_TAG_NAME }}
+          CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
