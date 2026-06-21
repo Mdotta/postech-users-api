@@ -36,23 +36,14 @@ jobs:
       - name: Test
         run: dotnet test src/Postech.Users.Api.sln --no-build --configuration Release
 
-      - name: Configure AWS credentials
-        run: |
-          mkdir -p ~/.aws
-          cat > ~/.aws/credentials << 'CREDENTIALS_EOF'
-          [default]
-          aws_access_key_id = ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_access_key = ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws_session_token = ${{ secrets.AWS_SESSION_TOKEN }}
-          CREDENTIALS_EOF
-          cat > ~/.aws/config << 'CONFIG_EOF'
-          [default]
-          region = ${{ secrets.AWS_REGION }}
-          output = json
-          CONFIG_EOF
-
       - name: Login to ECR
-        run: aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws ecr get-login-password | docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -65,9 +56,13 @@ jobs:
           platforms: linux/amd64
 
       - name: Deploy to EC2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
         run: |
           INSTANCE_ID=$(aws ec2 describe-instances \
-            --region "$AWS_REGION" \
             --filters "Name=tag:Name,Values=$EC2_TAG_NAME" \
                       "Name=instance-state-name,Values=running" \
             --query 'Reservations[0].Instances[0].InstanceId' \
@@ -98,15 +93,8 @@ jobs:
           EOF
 
           aws ssm send-command \
-            --region "$AWS_REGION" \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --parameters file:///tmp/ssm-commands.json
 
           echo "Deploy command sent. Check AWS SSM for execution status."
-        env:
-          AWS_REGION: ${{ env.AWS_REGION }}
-          AWS_ACCOUNT_ID: ${{ env.AWS_ACCOUNT_ID }}
-          ECR_REPO: ${{ env.ECR_REPO }}
-          EC2_TAG_NAME: ${{ env.EC2_TAG_NAME }}
-          CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
