@@ -6,17 +6,18 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: ${{ secrets.AWS_REGION }}
-  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-  ECR_REPO: ${{ secrets.ECR_REPO }}
-  EC2_TAG_NAME: ${{ secrets.EC2_TAG_NAME }}
-  CONTAINER_NAME: ${{ secrets.CONTAINER_NAME }}
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
   ci:
     runs-on: ubuntu-latest
     environment: master
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      ECR_REPO: ${{ secrets.ECR_REPO }}
+      EC2_TAG_NAME: ${{ secrets.EC2_TAG_NAME }}
+      CONTAINER_NAME: ${{ secrets.CONTAINER_NAME }}
 
     steps:
       - name: Checkout
@@ -72,6 +73,11 @@ jobs:
 
           if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ]; then
             echo "ERROR: No running EC2 instance found with tag Name=$EC2_TAG_NAME"
+            echo "Running instances and their Name tags:"
+            aws ec2 describe-instances \
+              --filters "Name=instance-state-name,Values=running" \
+              --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value|[0]]' \
+              --output text
             exit 1
           fi
 
