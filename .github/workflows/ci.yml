@@ -71,6 +71,7 @@ jobs:
           AWS_DEFAULT_REGION: ${{ vars.AWS_REGION }}
         run: |
           aws eks update-kubeconfig --region "$AWS_DEFAULT_REGION" --name tf-postech-eks
+          kubectl apply -f k8s/
           kubectl set image deployment/users-api \
             users-api=${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ vars.ECR_REPO }}:${{ env.IMAGE_TAG }}
           kubectl rollout status deployment/users-api --timeout=120s
