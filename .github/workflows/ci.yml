@@ -16,8 +16,6 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REPO: ${{ secrets.ECR_REPO }}
-      EC2_TAG_NAME: ${{ secrets.EC2_TAG_NAME }}
-      CONTAINER_NAME: ${{ secrets.CONTAINER_NAME }}
 
     steps:
       - name: Checkout
@@ -56,51 +54,14 @@ jobs:
             ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
           platforms: linux/amd64
 
-      - name: Deploy to EC2
+      - name: Deploy to EKS
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
         run: |
-          INSTANCE_ID=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=$EC2_TAG_NAME" \
-                      "Name=instance-state-name,Values=running" \
-            --query 'Reservations[0].Instances[0].InstanceId' \
-            --output text)
-
-          echo "Deploying to instance: $INSTANCE_ID"
-
-          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ]; then
-            echo "ERROR: No running EC2 instance found with tag Name=$EC2_TAG_NAME"
-            echo "Running instances and their Name tags:"
-            aws ec2 describe-instances \
-              --filters "Name=instance-state-name,Values=running" \
-              --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value|[0]]' \
-              --output text
-            exit 1
-          fi
-
-          REGISTRY="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
-          IMAGE="$REGISTRY/$ECR_REPO:latest"
-          ENV_FILE="/tmp/$CONTAINER_NAME.env"
-
-          cat > /tmp/ssm-commands.json << EOF
-          {
-            "commands": [
-              "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${REGISTRY}",
-              "docker inspect ${CONTAINER_NAME} --format '{{range .Config.Env}}{{println .}}{{end}}' > ${ENV_FILE} 2>/dev/null || true",
-              "docker pull ${IMAGE}",
-              "docker stop ${CONTAINER_NAME} 2>/dev/null || true",
-              "docker rm ${CONTAINER_NAME} 2>/dev/null || true",
-              "docker run -d --name ${CONTAINER_NAME} --restart unless-stopped -p 80:80 --env-file ${ENV_FILE} ${IMAGE}"
-            ]
-          }
-          EOF
-
-          aws ssm send-command \
-            --instance-ids "$INSTANCE_ID" \
-            --document-name "AWS-RunShellScript" \
-            --parameters file:///tmp/ssm-commands.json
-
-          echo "Deploy command sent. Check AWS SSM for execution status."
+          aws eks update-kubeconfig --region "$AWS_REGION" --name tf-postech-eks
+          kubectl set image deployment/users-api \
+            users-api=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
+          kubectl rollout status deployment/users-api --timeout=120s
